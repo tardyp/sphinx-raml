@@ -1,0 +1,204 @@
+#%RAML 1.0
+
+title: A CRUD API for Users and Groups
+mediaType: application/json
+
+types:
+
+  ###############
+  # Common:
+  ###############
+
+  Email:
+    pattern: "^\\w+(\\.\\w+)?@company.com"
+
+  StaticGroupNums:
+    description: Predefined user groups
+    enum: [ 12, 26, 30, 31, 32 ]
+
+  DynamicGroupNum:
+    description: Dynamically-defined user groups
+    pattern: "D\\-\\d+"
+
+  RecordId:
+    usage: An id of any record in the system
+    type: number
+
+  Record-base:
+    usage: Pattern for any record in the system
+    properties:
+      id:
+        type: RecordId
+        required: true
+      created:
+        type: date
+        required: true
+
+  ###############
+  # User:
+  ###############
+
+  User-base:
+    usage: The base type for user records
+    properties:
+      firstname:
+        required: true
+      lastname:
+        required: true
+
+  User-new:
+    usage: Data for creating a new user
+    type: User-base
+    properties:
+      HRAuth:
+        description: Authorization received from HR
+        required: true
+
+  User-update:
+    usage: Changeable properties of an existing user
+    properties:
+      firstname:
+      lastname:
+
+  User:
+    usage: A user in the system
+    type: [ User-base, Record-base ]
+    properties:
+      emails: Email[]
+
+  ###############
+  # Group:
+  ###############
+
+  Group-base:
+    usage: The base type for group records
+    properties:
+      name:
+        required: true
+
+  Group-new:
+    usage: Data for creating a new group
+    type: Group-base
+    properties:
+      ITAuth:
+        description: Authorization received from IT
+        required: true
+
+  Group-update:
+    usage: Changeable properties of an existing group
+    properties:
+      name:
+
+  Group:
+    usage: A group in the system
+    type: [ Group-base, Record-base ]
+    properties:
+      groupnum:
+        type: StaticGroupNums | DynamicGroupNum
+        required: true
+
+resourceTypes:
+
+  ###############
+  # Collection:
+  ###############
+
+  collection:
+    get:
+      responses:
+        200:
+          body:
+            properties:
+              total:
+                type: number
+                required: true
+              members: <typename>[]
+    post:
+      body:
+        type: <typename-new>
+      responses:
+        201:
+          headers:
+            Location:
+              required: true
+          body:
+            type: User
+
+  ###############
+  # Member:
+  ###############
+
+  member:
+    get:
+      responses:
+        200:
+          body:
+            type: <typename>
+    patch:
+      body:
+        type: <typename-patch>
+      responses:
+        200:
+          body:
+            type: <typename-new>
+    delete:
+      responses:
+        204:
+
+  deleteOnlyMember:
+    delete:
+      responses:
+        204:
+
+###############
+# API:
+###############
+
+/users:
+  description: All the users
+  type:
+    collection:
+      typename: User
+      typename-new: User-new
+  /{userId}:
+    description: A specific user
+    uriParameters:
+      userId: RecordId
+    type:
+      member:
+        typename: User
+        typename-update: User-update
+    /groups:
+      description: The groups to which this user belongs
+      type:
+        collection:
+          typename: Group
+          typename-new: RecordId
+      /{groupId}:
+        type: deleteOnlyMember
+        delete:
+          description: Remove this user from this group
+/groups:
+  description: All the groups
+  type:
+    collection:
+      typename: Group
+      typename-new: Group-new
+  /{groupId}:
+    description: A specific group
+    uriParameters:
+      groupId: RecordId
+    type:
+      member:
+        typename: Group
+        typename-update: Group-update
+    /users:
+      description: The users belonging to this group
+      type:
+        collection:
+          typename: User
+          typename-new: User-new
+      /{userId}:
+        type: deleteOnlyMember
+        delete:
+          description: Remove this user from this group
